@@ -1,4 +1,5 @@
-# TBD_Platformer
-A platformer project I'm not yet sure what I want to do with
+# unnamed_platformer
+A platformer project I "borrowed" from @Zer0xCzk
+(To be fair, it wasn't even a prototype when I did)
 
-Updates will become semi-frequent once I get a working version on linux
+Updates will probably be very infrequent and rare, but that mostly depends on my mood

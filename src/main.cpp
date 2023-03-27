@@ -6,13 +6,19 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include "object.h"
+#include "objects.h"
 
 void Update(float dt);
 void RenderFrame(float dt);
 
+//=============================================================================
+
 #define WW 1200
 #define WH 900
+const int ammount = 10;
+int gravity = 15;
+Entity player = {0, 0, 50, 50, 0, 0, 50, 50, 0, 0, 25, 350, 5, 500, 10, false};
+Terrain terrain[ammount];
 
 //=============================================================================
 
@@ -23,21 +29,15 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
-	if (!CreateWindow("Cyper", WW, WH))
+	if (!CreateWindow("Jet-Climber", WW, WH))
 	{
 		return 1;
 	}
-
+	
 	StartLoop(Update, RenderFrame);
 
 	return 0;
 }
-
-bool jump;
-const int ammount = 10;
-Object player = { 0, 0, 50, 50, 200, 0};
-Object pastplayer = player;
-Object terrain[ammount] = {0, 0, 0, 0, 0, 0};
 
 //=============================================================================
 
@@ -65,67 +65,127 @@ void TerGen()
 	}
 }
 
-void PosUp(float dt)
+void EntityMovement(Entity &entity, bool left, bool right, bool up, float dt)
 {
-	if (IsKeyDown(SDL_SCANCODE_A))
+	//Accelerates the entity to the left
+	if (left)
 	{
-		player.box.x -= (int)(player.speed * dt + 0.5f);
+		entity.velx -= entity.speed;
 	}
-	if (IsKeyDown(SDL_SCANCODE_W) && jump)
+	//Accelerates the entity to the right
+	if (right)
 	{
-		player.vely = -700;
-		jump = false;
+		entity.velx += entity.speed;
 	}
-	if (IsKeyDown(SDL_SCANCODE_D))
+	//Makes the entity jump
+	if (up)
 	{
-		player.box.x += (int)(player.speed * dt + 0.5f);
+		if (entity.canjump)
+		{
+			entity.vely = -entity.jump;
+		}
+		else if (entity.vely < 0)
+		{
+			entity.vely -= entity.jumpjet;
+		}
 	}
-	player.vely += 15;
-	player.box.y += (int)(player.vely * dt + 0.5f);
+	//Produces friction
+	if (entity.velx > 0)
+	{
+		entity.velx -= entity.friction;
+	}
+	else
+	{
+		entity.velx += entity.friction;
+	}
+	if (fabs(entity.velx) - entity.friction < entity.friction) {
+		entity.velx = 0;
+	}
+	//Limits max velocity
+	if (entity.velx > entity.maxspeed)
+	{
+		entity.velx = entity.maxspeed;
+	}
+	else if (entity.velx < -entity.maxspeed)
+	{
+		entity.velx = -entity.maxspeed;
+	}
+	//Applies accelerated motion
+	entity.vely += gravity;
+	entity.box.x += (int)(entity.velx * dt);
+	entity.box.y += (int)(entity.vely * dt);
+}
+void PlayerControl(float dt)
+{
+	bool left = false;
+	bool right = false;
+	bool up = false;
+	if (IsKeyDown(SDL_SCANCODE_A) || IsKeyDown(SDL_SCANCODE_LEFT))
+	{
+		left = true;
+	}
+	if (IsKeyDown(SDL_SCANCODE_D) || IsKeyDown(SDL_SCANCODE_RIGHT))
+	{
+		right = true;
+	}
+	if (IsKeyDown(SDL_SCANCODE_W) || IsKeyDown(SDL_SCANCODE_UP))
+	{
+		up = true;
+	}
+	EntityMovement(player, left, right, up, dt);
 }
 
-void ColUp(float dt)
+void EntityTerrainCollision(Entity &entity, float dt)
 {
-	SDL_Point left_top = { player.box.x, player.box.y};
-	SDL_Point right_top = { player.box.x + player.box.w, player.box.y };
-	SDL_Point left_bottom = { player.box.x, player.box.y + player.box.h };
-	SDL_Point right_bottom = { player.box.x + player.box.w, player.box.y + player.box.h };
+	entity.canjump = false;
+	SDL_Point left_top = { entity.box.x, entity.box.y };
+	SDL_Point right_top = { entity.box.x + entity.box.w, entity.box.y };
+	SDL_Point left_bottom = { entity.box.x, entity.box.y + entity.box.h };
+	SDL_Point right_bottom = { entity.box.x + entity.box.w, entity.box.y + entity.box.h };
 	for (int i = 0; i < ammount; i++)
 	{
-		//Keeps the player above a rectangle
-		if ((SDL_PointInRect(&right_bottom, &terrain[i].box) || SDL_PointInRect(&left_bottom, &terrain[i].box)) && pastplayer.box.y + pastplayer.box.h <= terrain[i].box.y)
+		//Keeps the entity above a rectangle
+		if ((SDL_PointInRect(&right_bottom, &terrain[i].box) || SDL_PointInRect(&left_bottom, &terrain[i].box)) && entity.past.y + entity.past.h <= terrain[i].box.y)
 		{
-			player.box.y = terrain[i].box.y  - player.box.h;
-			player.vely = 0;
-			jump = true;
+			entity.box.y = terrain[i].box.y - entity.box.h;
+			entity.vely = 0;
+			entity.canjump = true;
 		}
-		//Keeps the player below a rectangle
-		else if ((SDL_PointInRect(&right_top, &terrain[i].box) || SDL_PointInRect(&left_top, &terrain[i].box)) && pastplayer.box.y >= terrain[i].box.y + terrain[i].box.h)
+		//Keeps the entity below a rectangle
+		else if ((SDL_PointInRect(&right_top, &terrain[i].box) || SDL_PointInRect(&left_top, &terrain[i].box)) && entity.past.y >= terrain[i].box.y + terrain[i].box.h)
 		{
-			player.box.y = terrain[i].box.y + terrain[i].box.h;
-			player.vely = 0;
+			entity.box.y = terrain[i].box.y + terrain[i].box.h;
+			entity.vely = 0;
 		}
-		//Keeps the player to the left of a rectangle
+		//Keeps the entity to the left of a rectangle
 		else if (SDL_PointInRect(&right_bottom, &terrain[i].box) || SDL_PointInRect(&right_top, &terrain[i].box))
 		{
-			player.box.x = terrain[i].box.x - player.box.w;
-			jump = true;
+			entity.box.x = terrain[i].box.x - entity.box.w;
+			entity.velx = 0;
+			entity.canjump = true;
 		}
-		//Keeps the player to the right of a rectangle
+		//Keeps the entity to the right of a rectangle
 		else if (SDL_PointInRect(&left_bottom, &terrain[i].box) || SDL_PointInRect(&left_top, &terrain[i].box))
 		{
-			player.box.x = terrain[i].box.x + terrain[i].box.w;
-			jump = true;
+			entity.box.x = terrain[i].box.x + terrain[i].box.w;
+			entity.velx = 0;
+			entity.canjump = true;
 		}
 	}
-	pastplayer = player;
+	entity.past = entity.box;
+}
+void Collisions(float dt)
+{
+	EntityTerrainCollision(player, dt);
 }
 
 void Update(float dt)
 {
 	TerGen();
-	PosUp(dt);
-	ColUp(dt);
+	PlayerControl(dt);
+	//AiControl()
+	Collisions(dt);
+
 	if (IsKeyDown(SDL_SCANCODE_ESCAPE))
 	{
 		ExitGame();
@@ -135,12 +195,13 @@ void Update(float dt)
 void RenderFrame(float interpolation)
 {
 	
-	// Clear screen
+	//Clear screen
 	SDL_SetRenderDrawColor(gRenderer, 65, 105, 225, 255);
 	SDL_RenderClear(gRenderer);
-
+	//Render player
 	SDL_SetRenderDrawColor(gRenderer, 160, 0, 160, 255);
 	SDL_RenderFillRect(gRenderer, &player.box);
+	//Render terrain
 	SDL_SetRenderDrawColor(gRenderer, 120, 120, 120, 255);
 	for (int i = 0; i < ammount; i++)
 	{
