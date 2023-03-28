@@ -10,13 +10,13 @@ set(SOURCES
 	src/sprite.h
 	src/sprite.cpp
 	src/main.cpp
-    src/object.h
+    	src/objects.h
 )
 
 source_group("Headers" FILES
 	src/engine.h
 	src/sprite.h
-    src/object.h
+    	src/objects.h
 )
 
 # Set a default build type if none was specified
